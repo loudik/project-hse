@@ -1,0 +1,69 @@
+import { useState } from 'react'
+import Logo from '@/components/template/Logo'
+import Alert from '@/components/ui/Alert'
+import SignUpForm from './components/SignUpForm'
+import ActionLink from '@/components/shared/ActionLink'
+import useTimeOutMessage from '@/utils/hooks/useTimeOutMessage'
+import { useThemeStore } from '@/store/themeStore'
+
+export const SignUpBase = ({ signInUrl = '/sign-in', disableSubmit }) => {
+    const [message, setMessage] = useTimeOutMessage()
+    const [registeredMessage, setRegisteredMessage] = useState('')
+
+    const mode = useThemeStore((state) => state.mode)
+
+    return (
+        <>
+            <div className="mb-8">
+                <Logo type="streamline" mode={mode} imgClass="mx-auto" logoWidth={60} />
+            </div>
+
+            {registeredMessage ? (
+                <>
+                    <div className="mb-6">
+                        <h3 className="mb-2">Check your email</h3>
+                        <p className="font-semibold heading-text">{registeredMessage}</p>
+                    </div>
+                    <div className="mt-6 text-center">
+                        <ActionLink to={signInUrl} className="heading-text font-bold" themeColor={false}>
+                            Back to sign in
+                        </ActionLink>
+                    </div>
+                </>
+            ) : (
+                <>
+                    <div className="mb-8">
+                        <h3 className="mb-1">Sign Up</h3>
+                        <p className="font-semibold heading-text">
+                            Create an account to submit HSE applications
+                        </p>
+                    </div>
+                    {message && (
+                        <Alert showIcon className="mb-4" type="danger">
+                            <span className="break-all">{message}</span>
+                        </Alert>
+                    )}
+                    <SignUpForm
+                        disableSubmit={disableSubmit}
+                        setMessage={setMessage}
+                        onRegistered={setRegisteredMessage}
+                    />
+                    <div>
+                        <div className="mt-6 text-center">
+                            <span>Already have an account? </span>
+                            <ActionLink to={signInUrl} className="heading-text font-bold" themeColor={false}>
+                                Sign in
+                            </ActionLink>
+                        </div>
+                    </div>
+                </>
+            )}
+        </>
+    )
+}
+
+const SignUp = () => {
+    return <SignUpBase />
+}
+
+export default SignUp

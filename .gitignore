@@ -1,0 +1,20 @@
+# --- Frontend (hse-frontend-react) ---
+node_modules/
+build/
+dist/
+*.log
+
+# --- Backend (hse-backend-go) ---
+hse-backend-go/hse-server
+hse-backend-go/*.exe
+
+# --- Environment / secrets (JANGAN pernah di-commit) ---
+.env
+hse-backend-go/.env
+hse-frontend-react/.env
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
