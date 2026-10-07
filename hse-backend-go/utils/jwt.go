@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type Claims struct {
@@ -17,7 +18,7 @@ type Claims struct {
 func jwtSecret() []byte {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "dev-secret-ganti-di-production" // fallback untuk local dev saja
+		secret = "dev-secret-change-in-production"
 	}
 	return []byte(secret)
 }
@@ -28,6 +29,7 @@ func GenerateToken(userID string, roleID int, roleName string) (string, error) {
 		RoleID:   roleID,
 		RoleName: roleName,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.NewString(),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},

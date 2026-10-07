@@ -46,35 +46,33 @@ const OauthSignIn = ({ setMessage, disableSubmit }) => {
     }
 
     return (
-        <div className="flex items-center gap-2">
-            <Button
-                className="flex-1"
+        <div className="flex flex-col gap-3">
+            <button
                 type="button"
                 onClick={handleGoogleSignIn}
+                className="flex items-center justify-center gap-3 w-full h-11 rounded-lg border border-gray-300 dark:border-gray-600 bg-white text-gray-700 font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors"
             >
-                <div className="flex items-center justify-center gap-2">
-                    <img
-                        className="h-[25px] w-[25px]"
-                        src="/img/others/google.png"
-                        alt="Google sign in"
-                    />
-                    <span>Google</span>
-                </div>
-            </Button>
-            <Button
-                className="flex-1"
+                <img
+                    className="h-5 w-5"
+                    src="/img/others/google.png"
+                    alt=""
+                    aria-hidden="true"
+                />
+                <span>Continue with Google</span>
+            </button>
+            <button
                 type="button"
                 onClick={handleMicrosoftSignIn}
+                className="flex items-center justify-center gap-3 w-full h-11 rounded-lg bg-[#2F2F2F] text-white font-medium hover:bg-[#1f1f1f] active:bg-[#141414] transition-colors"
             >
-                <div className="flex items-center justify-center gap-2">
-                    <img
-                        className="h-[25px] w-[25px]"
-                        src="/img/others/microsoft.png"
-                        alt="Microsoft 365 sign in"
-                    />
-                    <span>Microsoft 365</span>
-                </div>
-            </Button>
+                <img
+                    className="h-5 w-5"
+                    src="/img/others/microsoft.png"
+                    alt=""
+                    aria-hidden="true"
+                />
+                <span>Continue with Microsoft 365</span>
+            </button>
         </div>
     )
 }

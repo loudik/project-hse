@@ -3,6 +3,7 @@ import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import Button from '@/components/ui/Button'
 import Alert from '@/components/ui/Alert'
+import { countryList } from '@/constants/countries.constant'
 import { FormItem, Form } from '@/components/ui/Form'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -130,7 +131,14 @@ const OrganizationForm = ({ onCreated }) => {
                 <Controller
                     name="country"
                     control={control}
-                    render={({ field }) => <Input type="text" placeholder="Country" {...field} />}
+                    render={({ field }) => (
+                        <Select
+                            options={countryList}
+                            placeholder="Select country"
+                            value={countryList.find((c) => c.value === field.value) || null}
+                            onChange={(option) => field.onChange(option?.value || '')}
+                        />
+                    )}
                 />
             </FormItem>
 

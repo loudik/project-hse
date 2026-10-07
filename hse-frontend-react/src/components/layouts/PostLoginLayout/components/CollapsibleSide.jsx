@@ -5,6 +5,7 @@ import MobileNav from '@/components/template/MobileNav'
 import UserProfileDropdown from '@/components//template/UserProfileDropdown'
 import LayoutBase from '@/components//template/LayoutBase'
 import useResponsive from '@/utils/hooks/useResponsive'
+import Notification from '@/components/template/Notification'
 import { LAYOUT_COLLAPSIBLE_SIDE } from '@/constants/theme.constant'
 
 const CollapsibleSide = ({ children }) => {
@@ -28,6 +29,7 @@ const CollapsibleSide = ({ children }) => {
                         }
                         headerEnd={
                             <>
+                                <Notification />
                                 <UserProfileDropdown hoverable={false} />
                             </>
                         }

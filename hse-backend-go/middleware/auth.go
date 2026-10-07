@@ -24,6 +24,11 @@ func RequireAuth(c *gin.Context) {
 		return
 	}
 
+	if utils.IsTokenBlacklisted(claims.ID) {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "This session has been signed out. Please sign in again."})
+		return
+	}
+
 	c.Set("userId", claims.UserID)
 	c.Set("roleId", claims.RoleID)
 	c.Set("roleName", claims.RoleName)

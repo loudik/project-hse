@@ -1,20 +1,30 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 
 	"hse-backend-go/db"
 	"hse-backend-go/models"
 	"hse-backend-go/utils"
 )
+
+// emailVerifyKey builds the Redis key holding a pending email-verification
+// token. Value = userID, TTL = how long the link stays valid.
+func emailVerifyKey(token string) string {
+	return "email_verify:" + token
+}
 
 // POST /api/sign-in (endpointConfig.signIn on the Ecme frontend)
 func SignIn(c *gin.Context) {
@@ -46,7 +56,6 @@ func SignIn(c *gin.Context) {
 	}
 
 	if !passwordHash.Valid {
-		// account created via OAuth (Microsoft/Google) - no password set
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "This account uses social sign-in. Please use the Microsoft/Google button instead."})
 		return
 	}
@@ -82,14 +91,18 @@ func SignIn(c *gin.Context) {
 	})
 }
 
-// POST /api/sign-out - called by AuthProvider.signOut(). No server-side
-// token invalidation needed (JWT is stateless) - just respond 200 so the
-// frontend proceeds to clear its local token/session.
 func SignOut(c *gin.Context) {
+	header := c.GetHeader("Authorization")
+	if strings.HasPrefix(header, "Bearer ") {
+		tokenStr := strings.TrimPrefix(header, "Bearer ")
+		if claims, err := utils.ParseToken(tokenStr); err == nil && claims.ExpiresAt != nil {
+			_ = utils.BlacklistToken(claims.ID, claims.ExpiresAt.Time)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
 }
 
-// GET /api/auth/me - optional, verify token & fetch current user data
+// GET /api/auth/me
 func Me(c *gin.Context) {
 	userID := c.GetString("userId")
 
@@ -107,11 +120,7 @@ func Me(c *gin.Context) {
 	c.JSON(http.StatusOK, models.EcmeUser{UserName: name, Email: email, Authority: []string{roleName}})
 }
 
-// POST /api/sign-up - public registration for external vessel
-// operators/applicants (US 1.1). Account starts as "Pending" and only
-// becomes usable after email verification - see VerifyEmail below.
-// Always assigned the "Operator" role (internal ANP staff never
-// self-register - see oauthHandler.go for their Microsoft sign-in flow).
+// POST /api/sign-up - public registration for external vessel operators
 func SignUp(c *gin.Context) {
 	var input struct {
 		Name             string `json:"name" binding:"required"`
@@ -144,9 +153,6 @@ func SignUp(c *gin.Context) {
 		return
 	}
 
-	// Public Sign Up is for external vessel operators/applicants -
-	// they always get the "Operator" role (internal ANP staff never
-	// self-register; they sign in via Microsoft - see oauthHandler.go).
 	var operatorRoleID int
 	if err := db.DB.QueryRow(`SELECT id FROM roles WHERE name = 'Operator'`).Scan(&operatorRoleID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Default role not found"})
@@ -174,14 +180,10 @@ func SignUp(c *gin.Context) {
 		return
 	}
 
-	// Create a verification token, valid 24h
-	verificationID := uuid.NewString()
+	// Create a verification token, valid 24h - stored in Redis so it
+	// expires itself, no manual expiry/used-flag bookkeeping needed
 	token := uuid.NewString()
-	_, err = db.DB.Exec(`
-		INSERT INTO email_verifications (id, user_id, token, expires_at)
-		VALUES (?, ?, ?, ?)
-	`, verificationID, newID, token, time.Now().Add(24*time.Hour))
-	if err != nil {
+	if err := db.RDB.Set(context.Background(), emailVerifyKey(token), newID, 24*time.Hour).Err(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Account created but failed to prepare email verification"})
 		return
 	}
@@ -200,12 +202,12 @@ func SignUp(c *gin.Context) {
 	`, input.Name, verificationURL, verificationURL)
 
 	emailErr := utils.SendEmail(input.Email, "Verify your HSE Approval account", emailBody)
-
+	if emailErr != nil {
+		log.Printf("[sign-up] failed to send verification email to %s: %v", input.Email, emailErr)
+	}
 	response := gin.H{
 		"message": "Registration successful. Please check your email to verify your account.",
 	}
-	// SMTP not configured (local dev) or sending failed - surface the link
-	// directly in the response so the flow can still be tested end-to-end.
 	if os.Getenv("SMTP_HOST") == "" || emailErr != nil {
 		response["verificationUrl"] = verificationURL
 	}
@@ -213,7 +215,7 @@ func SignUp(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
-// GET /api/verify-email?token=... - activates a Pending account (US 1.1)
+// GET /api/verify-email?token=... - activates a Pending account
 func VerifyEmail(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
@@ -221,28 +223,16 @@ func VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	var (
-		id, userID string
-		expiresAt  time.Time
-		usedAt     sql.NullTime
-	)
-	err := db.DB.QueryRow(`
-		SELECT id, user_id, expires_at, used_at FROM email_verifications WHERE token = ?
-	`, token).Scan(&id, &userID, &expiresAt, &usedAt)
-	if err == sql.ErrNoRows {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid verification link"})
+	ctx := context.Background()
+	key := emailVerifyKey(token)
+
+	userID, err := db.RDB.Get(ctx, key).Result()
+	if err == redis.Nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "This verification link is invalid or has expired"})
 		return
 	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to verify email"})
-		return
-	}
-	if usedAt.Valid {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "This verification link has already been used"})
-		return
-	}
-	if time.Now().After(expiresAt) {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "This verification link has expired"})
 		return
 	}
 
@@ -250,10 +240,9 @@ func VerifyEmail(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to activate account"})
 		return
 	}
-	if _, err := db.DB.Exec(`UPDATE email_verifications SET used_at = NOW() WHERE id = ?`, id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Account activated, but failed to record verification usage"})
-		return
-	}
+
+	// one-time use - delete right after successful verification
+	db.RDB.Del(ctx, key)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Your email has been verified. You can now sign in."})
 }

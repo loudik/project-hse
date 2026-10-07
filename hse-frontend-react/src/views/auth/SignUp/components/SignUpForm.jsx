@@ -83,19 +83,7 @@ const SignUpForm = (props) => {
     return (
         <div className={className}>
             <Form onSubmit={handleSubmit(onSignUp)}>
-                <FormItem
-                    label="Full name"
-                    invalid={Boolean(errors.userName)}
-                    errorMessage={errors.userName?.message}
-                >
-                    <Controller
-                        name="userName"
-                        control={control}
-                        render={({ field }) => (
-                            <Input type="text" placeholder="Full name" autoComplete="off" {...field} />
-                        )}
-                    />
-                </FormItem>
+                <h6 className="mb-3 heading-text">Account</h6>
                 <FormItem
                     label="Email"
                     invalid={Boolean(errors.email)}
@@ -109,32 +97,79 @@ const SignUpForm = (props) => {
                         )}
                     />
                 </FormItem>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                    <FormItem
+                        label="Password"
+                        invalid={Boolean(errors.password)}
+                        errorMessage={errors.password?.message}
+                    >
+                        <Controller
+                            name="password"
+                            control={control}
+                            render={({ field }) => (
+                                <Input type="password" autoComplete="off" placeholder="Password" {...field} />
+                            )}
+                        />
+                    </FormItem>
+                    <FormItem
+                        label="Confirm password"
+                        invalid={Boolean(errors.confirmPassword)}
+                        errorMessage={errors.confirmPassword?.message}
+                    >
+                        <Controller
+                            name="confirmPassword"
+                            control={control}
+                            render={({ field }) => (
+                                <Input type="password" autoComplete="off" placeholder="Confirm password" {...field} />
+                            )}
+                        />
+                    </FormItem>
+                </div>
+
+                <h6 className="mb-3 mt-2 heading-text">Your details</h6>
                 <FormItem
-                    label="Phone number"
-                    invalid={Boolean(errors.phoneNumber)}
-                    errorMessage={errors.phoneNumber?.message}
+                    label="Full name"
+                    invalid={Boolean(errors.userName)}
+                    errorMessage={errors.userName?.message}
                 >
                     <Controller
-                        name="phoneNumber"
+                        name="userName"
                         control={control}
                         render={({ field }) => (
-                            <Input type="text" placeholder="Phone number" autoComplete="off" {...field} />
+                            <Input type="text" placeholder="Full name" autoComplete="off" {...field} />
                         )}
                     />
                 </FormItem>
-                <FormItem
-                    label="Position"
-                    invalid={Boolean(errors.position)}
-                    errorMessage={errors.position?.message}
-                >
-                    <Controller
-                        name="position"
-                        control={control}
-                        render={({ field }) => (
-                            <Input type="text" placeholder="e.g. HSE Officer" autoComplete="off" {...field} />
-                        )}
-                    />
-                </FormItem>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                    <FormItem
+                        label="Phone number"
+                        invalid={Boolean(errors.phoneNumber)}
+                        errorMessage={errors.phoneNumber?.message}
+                    >
+                        <Controller
+                            name="phoneNumber"
+                            control={control}
+                            render={({ field }) => (
+                                <Input type="text" placeholder="Phone number" autoComplete="off" {...field} />
+                            )}
+                        />
+                    </FormItem>
+                    <FormItem
+                        label="Position"
+                        invalid={Boolean(errors.position)}
+                        errorMessage={errors.position?.message}
+                    >
+                        <Controller
+                            name="position"
+                            control={control}
+                            render={({ field }) => (
+                                <Input type="text" placeholder="e.g. HSE Officer" autoComplete="off" {...field} />
+                            )}
+                        />
+                    </FormItem>
+                </div>
+
+                <h6 className="mb-3 mt-2 heading-text">Organization</h6>
                 <FormItem
                     label="Organization"
                     invalid={Boolean(errors.organizationName)}
@@ -148,61 +183,39 @@ const SignUpForm = (props) => {
                         )}
                     />
                 </FormItem>
-                <FormItem
-                    label="Location"
-                    invalid={Boolean(errors.location)}
-                    errorMessage={errors.location?.message}
-                >
-                    <Controller
-                        name="location"
-                        control={control}
-                        render={({ field }) => (
-                            <Input type="text" placeholder="City, country" autoComplete="off" {...field} />
-                        )}
-                    />
-                </FormItem>
-                <FormItem
-                    label="Website (optional)"
-                    invalid={Boolean(errors.website)}
-                    errorMessage={errors.website?.message}
-                >
-                    <Controller
-                        name="website"
-                        control={control}
-                        render={({ field }) => (
-                            <Input type="text" placeholder="https://..." autoComplete="off" {...field} />
-                        )}
-                    />
-                </FormItem>
-                <FormItem
-                    label="Password"
-                    invalid={Boolean(errors.password)}
-                    errorMessage={errors.password?.message}
-                >
-                    <Controller
-                        name="password"
-                        control={control}
-                        render={({ field }) => (
-                            <Input type="password" autoComplete="off" placeholder="Password" {...field} />
-                        )}
-                    />
-                </FormItem>
-                <FormItem
-                    label="Confirm Password"
-                    invalid={Boolean(errors.confirmPassword)}
-                    errorMessage={errors.confirmPassword?.message}
-                >
-                    <Controller
-                        name="confirmPassword"
-                        control={control}
-                        render={({ field }) => (
-                            <Input type="password" autoComplete="off" placeholder="Confirm Password" {...field} />
-                        )}
-                    />
-                </FormItem>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+                    <FormItem
+                        label="Location"
+                        invalid={Boolean(errors.location)}
+                        errorMessage={errors.location?.message}
+                    >
+                        <Controller
+                            name="location"
+                            control={control}
+                            render={({ field }) => (
+                                <Input type="text" placeholder="City, country" autoComplete="off" {...field} />
+                            )}
+                        />
+                    </FormItem>
+                    <FormItem
+                        label="Website (optional)"
+                        invalid={Boolean(errors.website)}
+                        errorMessage={errors.website?.message}
+                    >
+                        <Controller
+                            name="website"
+                            control={control}
+                            render={({ field }) => (
+                                <Input type="text" placeholder="https://..." autoComplete="off" {...field} />
+                            )}
+                        />
+                    </FormItem>
+                </div>
+
                 <FormItem
                     invalid={Boolean(errors.acceptTerms)}
                     errorMessage={errors.acceptTerms?.message}
+                    className="mt-2"
                 >
                     <Controller
                         name="acceptTerms"

@@ -12,12 +12,44 @@ import { HiOutlineMailOpen } from 'react-icons/hi'
 import {
     apiGetNotificationList,
     apiGetNotificationCount,
+    apiMarkNotificationRead,
+    apiMarkAllNotificationsRead,
 } from '@/services/CommonService'
 import isLastChild from '@/utils/isLastChild'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { useNavigate } from 'react-router'
 
 const notificationHeight = 'h-[280px]'
+
+// Backend sends { id, title, message, link, isRead, createdAt }. Map that
+// to the avatar type this component's NotificationAvatar expects, so
+// approve/reject notifications get a clear success/fail icon instead of a
+// generic avatar.
+const toAvatarProps = (title = '') => {
+    const lower = title.toLowerCase()
+    if (lower.includes('approved')) {
+        return { type: 2, status: 'succeed' }
+    }
+    if (lower.includes('rejected')) {
+        return { type: 2, status: 'failed' }
+    }
+    if (lower.includes('submitted')) {
+        return { type: 1 }
+    }
+    return { type: 0, target: title }
+}
+
+const formatRelativeDate = (isoString) => {
+    if (!isoString) return ''
+    const date = new Date(isoString)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toLocaleString(undefined, {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+}
 
 const _Notification = ({ className }) => {
     const [notificationList, setNotificationList] = useState([])
@@ -44,46 +76,41 @@ const _Notification = ({ className }) => {
     }, [])
 
     const onNotificationOpen = async () => {
-        if (notificationList.length === 0) {
-            setLoading(true)
-            const resp = await apiGetNotificationList()
-            setLoading(false)
-            setNotificationList(resp)
-        }
+        setLoading(true)
+        const resp = await apiGetNotificationList()
+        setLoading(false)
+        setNotificationList(resp)
+        setNoResult(resp.length === 0)
     }
 
-    const onMarkAllAsRead = () => {
-        const list = notificationList.map((item) => {
-            if (!item.readed) {
-                item.readed = true
-            }
-            return item
-        })
+    const onMarkAllAsRead = async () => {
+        const hadUnread = notificationList.some((item) => !item.isRead)
+        if (!hadUnread) return
+
+        const list = notificationList.map((item) => ({
+            ...item,
+            isRead: true,
+        }))
         setNotificationList(list)
         setUnreadNotification(false)
-    }
-
-    const onMarkAsRead = (id) => {
-        const list = notificationList.map((item) => {
-            if (item.id === id) {
-                item.readed = true
-            }
-            return item
-        })
-        setNotificationList(list)
-        const hasUnread = notificationList.some((item) => !item.readed)
-
-        if (!hasUnread) {
-            setUnreadNotification(false)
-        }
+        await apiMarkAllNotificationsRead()
     }
 
     const notificationDropdownRef = useRef(null)
 
-    const handleViewAllActivity = () => {
-        navigate('/concepts/account/activity-log')
-        if (notificationDropdownRef.current) {
-            notificationDropdownRef.current.handleDropdownClose()
+    const onMarkAsRead = async (item) => {
+        if (!item.isRead) {
+            const list = notificationList.map((n) =>
+                n.id === item.id ? { ...n, isRead: true } : n,
+            )
+            setNotificationList(list)
+            const stillUnread = list.some((n) => !n.isRead)
+            setUnreadNotification(stillUnread)
+            apiMarkNotificationRead(item.id)
+        }
+        if (item.link) {
+            navigate(item.link)
+            notificationDropdownRef.current?.handleDropdownClose()
         }
     }
 
@@ -121,26 +148,30 @@ const _Notification = ({ className }) => {
                         <div key={item.id}>
                             <div
                                 className={`relative rounded-xl flex px-4 py-3 cursor-pointer hover:bg-gray-100 active:bg-gray-100 dark:hover:bg-gray-700`}
-                                onClick={() => onMarkAsRead(item.id)}
+                                onClick={() => onMarkAsRead(item)}
                             >
                                 <div>
-                                    <NotificationAvatar {...item} />
+                                    <NotificationAvatar
+                                        {...toAvatarProps(item.title)}
+                                    />
                                 </div>
                                 <div className="mx-3">
                                     <div>
-                                        {item.target && (
-                                            <span className="font-semibold heading-text">
-                                                {item.target}{' '}
-                                            </span>
+                                        <span className="font-semibold heading-text">
+                                            {item.title}{' '}
+                                        </span>
+                                        {item.message && (
+                                            <span>{item.message}</span>
                                         )}
-                                        <span>{item.description}</span>
                                     </div>
-                                    <span className="text-xs">{item.date}</span>
+                                    <span className="text-xs">
+                                        {formatRelativeDate(item.createdAt)}
+                                    </span>
                                 </div>
                                 <Badge
                                     className="absolute top-4 ltr:right-4 rtl:left-4 mt-1.5"
                                     innerClass={`${
-                                        item.readed
+                                        item.isRead
                                             ? 'bg-gray-300 dark:bg-gray-600'
                                             : 'bg-primary'
                                     } `}
@@ -163,7 +194,7 @@ const _Notification = ({ className }) => {
                         <Spinner size={40} />
                     </div>
                 )}
-                {noResult && notificationList.length === 0 && (
+                {noResult && notificationList.length === 0 && !loading && (
                     <div
                         className={classNames(
                             'flex items-center justify-center',
@@ -176,23 +207,16 @@ const _Notification = ({ className }) => {
                                 src="/img/others/no-notification.png"
                                 alt="no-notification"
                             />
-                            <h6 className="font-semibold">No notifications!</h6>
-                            <p className="mt-1">Please Try again later</p>
+                            <h6 className="font-semibold">
+                                No notifications!
+                            </h6>
+                            <p className="mt-1">
+                                You&apos;re all caught up for now
+                            </p>
                         </div>
                     </div>
                 )}
             </ScrollBar>
-            <Dropdown.Item variant="header">
-                <div className="pt-4">
-                    <Button
-                        block
-                        variant="solid"
-                        onClick={handleViewAllActivity}
-                    >
-                        View All Activity
-                    </Button>
-                </div>
-            </Dropdown.Item>
         </Dropdown>
     )
 }

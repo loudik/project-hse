@@ -23,3 +23,18 @@ export async function apiUpdateUserStatus(id, status) {
         data: { status },
     })
 }
+
+export async function apiGetAccessMatrix() {
+    return ApiService.fetchDataWithAxios({
+        url: '/admin/access-matrix',
+        method: 'get',
+    })
+}
+
+export async function apiUpdateAccessMatrix(access) {
+    return ApiService.fetchDataWithAxios({
+        url: '/admin/access-matrix',
+        method: 'patch',
+        data: { access },
+    })
+}

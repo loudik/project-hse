@@ -1,14 +1,17 @@
 services:
+  # Local-only database. Enabled by COMPOSE_PROFILES=local-db in .env.
+  # On the server, leave COMPOSE_PROFILES unset and point MYSQL_HOST to the real MySQL.
   mysql:
+    profiles: ['local-db']
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
-      - '127.0.0.1:${MYSQL_HOST_PORT:-3306}:3306' # bound to localhost only - safe even on a public server
+      - '127.0.0.1:${MYSQL_HOST_PORT:-3306}:3306'
     healthcheck:
       test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
       interval: 5s
@@ -16,20 +19,37 @@ services:
       retries: 20
       start_period: 30s
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    ports:
+      - '127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001'
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   migrate:
     image: migrate/migrate:v4.17.1
     depends_on:
       mysql:
         condition: service_healthy
+        required: false   # ignored when the mysql profile is not enabled
     volumes:
       - ./hse-backend-go/migrations:/migrations
     entrypoint: ['sh', '-c']
     command:
       - >
-        sleep 5 &&
+        sleep 3 &&
         for i in 1 2 3 4 5; do
-          migrate -path=/migrations -database "mysql://root:${MYSQL_ROOT_PASSWORD}@tcp(mysql:3306)/${MYSQL_DATABASE}" up && exit 0;
+          migrate -path=/migrations -database "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(${MYSQL_HOST}:3306)/${MYSQL_DATABASE}" up && exit 0;
           echo "migrate attempt $$i failed, retrying in 5s...";
           sleep 5;
         done;
@@ -42,12 +62,9 @@ services:
     env_file:
       - ./hse-backend-go/.env
     environment:
-      DB_DSN: 'root:${MYSQL_ROOT_PASSWORD}@tcp(mysql:3306)/${MYSQL_DATABASE}?parseTime=true'
+      DB_DSN: '${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(${MYSQL_HOST}:3306)/${MYSQL_DATABASE}?parseTime=true'
       PORT: ${BACKEND_PORT:-3000}
-      # These override whatever is in hse-backend-go/.env, so the values
-      # in the root .env are the single source of truth when running via
-      # Docker. hse-backend-go/.env is still used for `go run main.go`
-      # outside Docker.
+      JWT_SECRET: ${JWT_SECRET}
       MS_CLIENT_ID: ${MS_CLIENT_ID}
       MS_TENANT_ID: ${MS_TENANT_ID}
       MS_CLIENT_SECRET: ${MS_CLIENT_SECRET}
@@ -59,13 +76,17 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-vessel-documents}
     depends_on:
-      mysql:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      minio:
+        condition: service_healthy
     ports:
-      - '${BACKEND_PORT:-3000}:${BACKEND_PORT:-3000}'
+      - '127.0.0.1:${BACKEND_PORT:-3000}:${BACKEND_PORT:-3000}'
 
   frontend:
     build:
@@ -82,3 +103,4 @@ services:
 
 volumes:
   mysql_data:
+  minio_data:

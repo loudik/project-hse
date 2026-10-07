@@ -27,14 +27,13 @@ const SignInForm = (props) => {
         handleSubmit,
         formState: { errors },
         control,
-    } = useForm({
+        } = useForm({
         defaultValues: {
-            email: 'admin-01@ecme.com',
-            password: '123Qwe',
+            email: '',
+            password: '',
         },
         resolver: zodResolver(validationSchema),
     })
-
     const { signIn } = useAuth()
 
     const onSignIn = async (values) => {

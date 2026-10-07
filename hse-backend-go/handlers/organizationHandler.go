@@ -2,13 +2,16 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"hse-backend-go/db"
 	"hse-backend-go/models"
+	"hse-backend-go/utils"
 )
 
 // POST /api/organizations - applicant creates their organization profile
@@ -58,6 +61,12 @@ func CreateOrganization(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Organization created but failed to link to user"})
 		return
 	}
+
+	utils.NotifyReviewers(
+		"New organization profile submitted",
+		input.Name,
+		"/organizations/"+id,
+	)
 
 	org, err := fetchOrganization(id)
 	if err != nil {
@@ -121,6 +130,17 @@ func ListOrganizations(c *gin.Context) {
 	c.JSON(http.StatusOK, list)
 }
 
+// GET /api/organizations/:id/history - ANP HSE/Admin only (same access as GetOrganization)
+func GetOrganizationHistory(c *gin.Context) {
+	orgID := c.Param("id")
+	history, err := utils.FetchAuditLog("organization", orgID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to fetch history"})
+		return
+	}
+	c.JSON(http.StatusOK, history)
+}
+
 // GET /api/organizations/:id
 func GetOrganization(c *gin.Context) {
 	org, err := fetchOrganization(c.Param("id"))
@@ -136,6 +156,7 @@ func GetOrganization(c *gin.Context) {
 }
 
 // PATCH /api/organizations/:id/decision - ANP HSE approve/reject
+// PATCH /api/organizations/:id/decision - ANP HSE/Admin only
 func DecideOrganization(c *gin.Context) {
 	approverID := c.GetString("userId")
 	orgID := c.Param("id")
@@ -150,12 +171,17 @@ func DecideOrganization(c *gin.Context) {
 		return
 	}
 
-	if _, err := fetchOrganization(orgID); err == sql.ErrNoRows {
+	org, err := fetchOrganization(orgID)
+	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Organization not found"})
 		return
 	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to fetch organization"})
+		return
+	}
 
-	_, err := db.DB.Exec(`
+	_, err = db.DB.Exec(`
 		UPDATE organizations
 		SET status = ?, approved_by = ?, approved_at = NOW(), rejection_reason = ?
 		WHERE id = ?
@@ -164,16 +190,36 @@ func DecideOrganization(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to save decision"})
 		return
 	}
+	utils.LogAudit("organization", orgID, strings.ToLower(input.Status), org.Status, input.Status, approverID, input.RejectionReason)
+	utils.CreateNotification(
+		org.CreatedBy,
+		"Your organization profile has been "+strings.ToLower(input.Status),
+		org.Name,
+		"/organization",
+	)
+	// Notify the applicant by email
+	var applicantEmail, applicantName string
+	if err := db.DB.QueryRow(`SELECT email, name FROM users WHERE id = ?`, org.CreatedBy).Scan(&applicantEmail, &applicantName); err == nil {
+		subject := "Your organization profile has been " + strings.ToLower(input.Status)
+		reasonHTML := ""
+		if input.Status == "Rejected" && input.RejectionReason != "" {
+			reasonHTML = "<p><strong>Reason:</strong> " + input.RejectionReason + "</p>"
+		}
+		body := fmt.Sprintf(`
+			<p>Hi %s,</p>
+			<p>Your organization profile (%s) has been <strong>%s</strong> by ANP HSE.</p>
+			%s
+			<p>You can log in to check the details.</p>
+		`, applicantName, org.Name, input.Status, reasonHTML)
+		_ = utils.SendEmail(applicantEmail, subject, body) // best-effort - don't fail the request if email sending fails
+	}
 
-	// TODO: send email notification to the applicant once an email/SMTP
-	// service is configured (US 2.x mentions "system sends a confirmation").
-
-	org, err := fetchOrganization(orgID)
+	updated, err := fetchOrganization(orgID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to read updated organization"})
 		return
 	}
-	c.JSON(http.StatusOK, org)
+	c.JSON(http.StatusOK, updated)
 }
 
 // --- helpers ---

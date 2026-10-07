@@ -26,7 +26,13 @@ export const protectedRoutes = [
     {
         key: 'userManagement',
         path: '/admin/users',
-        component: lazy(() => import('@/views/admin/UserManagement')),
+        component: lazy(() => import('@/views/admin/UserManagement')), 
+        authority: [],
+    },
+    {
+        key: 'roleMenuManagement',
+        path: '/admin/access',
+        component: lazy(() => import('@/views/admin/RoleMenuManagement')),
         authority: [],
     },
     /** Example purpose only, please remove */
@@ -70,5 +76,54 @@ export const protectedRoutes = [
         ),
         authority: [],
     },
+     {
+        key: 'vesselStart',
+        path: '/vessel',
+        component: lazy(() => import('@/views/vessel/VesselStart')),
+        authority: [],
+    },
+    {
+        key: 'vesselList',
+        path: '/vessel/list',
+        component: lazy(() => import('@/views/vessel/VesselList')),
+        authority: [],
+    },
+    {
+        key: 'vesselApply',
+        path: '/vessel/apply/:id',
+        component: lazy(() => import('@/views/vessel/VesselApply')),
+        authority: [],
+    },
+    {
+        key: 'vesselSummary',
+        path: '/vessel/summary/:id',
+        component: lazy(() => import('@/views/vessel/VesselSummary')),
+        authority: [],
+    },
+    {
+        key: 'vesselReview',
+        path: '/vessel/review',
+        component: lazy(() => import('@/views/vessel/VesselReview')),
+        authority: [],
+    },
+    {
+        key: 'vesselReviewDetail',
+        path: '/vessel/review/:id',
+        component: lazy(() => import('@/views/vessel/VesselSummary')),
+        authority: [],
+    },
+        {
+        key: 'extensionRequests',
+        path: '/vessel/extension-requests',
+        component: lazy(() => import('@/views/vessel/ExtensionRequests')),
+        authority: [],
+    },
+     {
+        key: 'dashboard',
+        path: '/dashboard',
+        component: lazy(() => import('@/views/dashboard')),
+        authority: ['Admin', 'ANP HSE'],
+    },
+
     ...othersRoute,
 ]

@@ -1,1 +1,18 @@
 @import './assets/styles/app.css';
+
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #vessel-summary-print,
+    #vessel-summary-print * {
+        visibility: visible;
+    }
+    #vessel-summary-print {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+}

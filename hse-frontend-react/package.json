@@ -29,6 +29,7 @@
     "@tiptap/react": "^2.10.4",
     "@tiptap/starter-kit": "^2.10.4",
     "@visx/pattern": "^3.13.0-alpha.0",
+    "apexcharts": "^6.9.0",
     "axios": "^1.15.0",
     "axios-mock-adapter": "^2.0.0",
     "classnames": "^2.5.1",
@@ -93,15 +94,15 @@
   },
   "overrides": {
     "gantt-task-react": {
-        "react": "19.2.3",
-        "react-dom": "19.2.3"
+      "react": "19.2.3",
+      "react-dom": "19.2.3"
     },
     "react-simple-maps": {
-        "react": "19.2.3",
-        "react-dom": "19.2.3"
+      "react": "19.2.3",
+      "react-dom": "19.2.3"
     },
     "react-syntax-highlighter": {
-        "prismjs": "1.30.0"
+      "prismjs": "1.30.0"
     },
     "motion-dom": "12.23.12"
   }

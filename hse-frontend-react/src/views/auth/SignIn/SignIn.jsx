@@ -51,7 +51,7 @@ export const SignInBase = ({signUpUrl = '/sign-up',forgetPasswordUrl = '/forgot-
                 <div className="flex items-center gap-2 mb-6">
                     <div className="border-t border-gray-200 dark:border-gray-800 flex-1 mt-[1px]" />
                     <p className="font-semibold heading-text">
-                        or countinue with
+                                                Or continue with
                     </p>
                     <div className="border-t border-gray-200 dark:border-gray-800 flex-1 mt-[1px]" />
                 </div>
