@@ -1,6 +1,6 @@
 services:
   # Local-only database. Enabled by COMPOSE_PROFILES=local-db in .env.
-  # On the server, leave COMPOSE_PROFILES unset and point MYSQL_HOST to the real MySQL.
+  # On the server leave COMPOSE_PROFILES unset and point MYSQL_HOST to the real MySQL.
   mysql:
     profiles: ['local-db']
     image: mysql:8.0
@@ -19,12 +19,15 @@ services:
       retries: 20
       start_period: 30s
 
+  # Local-only object storage. Enabled by COMPOSE_PROFILES=local-storage in .env.
+  # On the server leave it unset and point MINIO_ENDPOINT to the central storage.
   minio:
+    profiles: ['local-storage']
     image: minio/minio:latest
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
     volumes:
       - minio_data:/data
     ports:
@@ -41,7 +44,7 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-        required: false   # ignored when the mysql profile is not enabled
+        required: false # ignored when the mysql profile is not enabled
     volumes:
       - ./hse-backend-go/migrations:/migrations
     entrypoint: ['sh', '-c']
@@ -70,21 +73,23 @@ services:
       MS_CLIENT_SECRET: ${MS_CLIENT_SECRET}
       MS_REDIRECT_URI: ${MS_REDIRECT_URI}
       FRONTEND_URL: ${FRONTEND_URL}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USERNAME: ${SMTP_USERNAME}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
-      SMTP_FROM_NAME: ${SMTP_FROM_NAME}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-HSE Approval System}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
       MINIO_BUCKET: ${MINIO_BUCKET:-vessel-documents}
     depends_on:
       migrate:
         condition: service_completed_successfully
       minio:
         condition: service_healthy
+        required: false # ignored when the local-storage profile is not enabled
     ports:
       - '127.0.0.1:${BACKEND_PORT:-3000}:${BACKEND_PORT:-3000}'
 

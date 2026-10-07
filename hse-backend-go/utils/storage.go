@@ -1,11 +1,8 @@
 package utils
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"mime"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -17,7 +14,6 @@ import (
 )
 
 var minioClient *minio.Client
-var minioPublicClient *minio.Client
 var minioBucket string
 
 // InitStorage connects to MinIO and makes sure the bucket exists.
@@ -31,28 +27,18 @@ func InitStorage() error {
 		minioBucket = "vessel-documents"
 	}
 
+	// MINIO_USE_SSL=true for HTTPS endpoints (e.g. the central storage server),
+	// false or unset for plain HTTP such as the local MinIO container.
+	useSSL := os.Getenv("MINIO_USE_SSL") == "true"
+
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: false,
+		Secure: useSSL,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MinIO client: %w", err)
 	}
 	minioClient = client
-
-	publicEndpoint := os.Getenv("MINIO_PUBLIC_ENDPOINT")
-	if publicEndpoint == "" {
-		publicEndpoint = endpoint
-	}
-	publicClient, err := minio.New(publicEndpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: false,
-		Region: "us-east-1",
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create public-facing MinIO client: %w", err)
-	}
-	minioPublicClient = publicClient
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -70,6 +56,9 @@ func InitStorage() error {
 	return nil
 }
 
+// UploadFile stores an uploaded file under a namespaced path (e.g.
+// "vessel-applications/{applicationId}/{category}/{uuid}.ext") and returns
+// the object path to store in the database.
 func UploadFile(fileHeader *multipart.FileHeader, pathPrefix string) (objectPath string, err error) {
 	file, err := fileHeader.Open()
 	if err != nil {
@@ -80,24 +69,11 @@ func UploadFile(fileHeader *multipart.FileHeader, pathPrefix string) (objectPath
 	ext := filepath.Ext(fileHeader.Filename)
 	objectPath = fmt.Sprintf("%s/%s%s", pathPrefix, uuid.NewString(), ext)
 
-	// Browsers sometimes send an empty or generic Content-Type (especially
-	// for merged/edited PDFs from third-party tools) - fall back to
-	// guessing from the file extension so MinIO stores the right type and
-	// browsers render it inline instead of forcing a download.
-	contentType := fileHeader.Header.Get("Content-Type")
-	if contentType == "" || contentType == "application/octet-stream" {
-		if guessed := mime.TypeByExtension(ext); guessed != "" {
-			contentType = guessed
-		} else {
-			contentType = "application/octet-stream"
-		}
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	_, err = minioClient.PutObject(ctx, minioBucket, objectPath, file, fileHeader.Size, minio.PutObjectOptions{
-		ContentType: contentType,
+		ContentType: fileHeader.Header.Get("Content-Type"),
 	})
 	if err != nil {
 		return "", err
@@ -108,13 +84,11 @@ func UploadFile(fileHeader *multipart.FileHeader, pathPrefix string) (objectPath
 
 // GetFileDownloadURL returns a temporary (1 hour) pre-signed URL so the
 // frontend can download/view a file without exposing MinIO credentials.
-// Signed via minioPublicClient - see the Region comment in InitStorage for
-// why this works despite the container not being able to reach that host.
 func GetFileDownloadURL(objectPath string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	url, err := minioPublicClient.PresignedGetObject(ctx, minioBucket, objectPath, time.Hour, nil)
+	url, err := minioClient.PresignedGetObject(ctx, minioBucket, objectPath, time.Hour, nil)
 	if err != nil {
 		return "", err
 	}
@@ -126,33 +100,4 @@ func DeleteFile(objectPath string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return minioClient.RemoveObject(ctx, minioBucket, objectPath, minio.RemoveObjectOptions{})
-}
-
-// UploadBytes stores raw bytes (e.g. a generated document) at an exact,
-// caller-chosen object path - unlike UploadFile, there's no random uuid
-// suffix, so re-generating the same document overwrites the previous one.
-func UploadBytes(data []byte, objectPath string, contentType string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	_, err := minioClient.PutObject(ctx, minioBucket, objectPath, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
-		ContentType: contentType,
-	})
-	return err
-}
-
-// DownloadFileBytes reads an object's full contents back from MinIO - used
-// when we need the raw bytes again after already uploading (e.g. to attach
-// a just-generated document to an email) rather than re-generating it.
-func DownloadFileBytes(objectPath string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	obj, err := minioClient.GetObject(ctx, minioBucket, objectPath, minio.GetObjectOptions{})
-	if err != nil {
-		return nil, err
-	}
-	defer obj.Close()
-
-	return io.ReadAll(obj)
 }
